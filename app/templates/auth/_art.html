@@ -1,0 +1,12 @@
+<aside class="auth-art">
+  <a class="l-brand" href="{{ url_for('auth.landing') }}"><span class="mark">SP</span>Student Portal</a>
+  <div>
+    <blockquote>One place for every course: materials, deadlines, submissions and feedback.</blockquote>
+    <ul>
+      <li>Separate workspaces for faculty and students</li>
+      <li>Files stored privately on Amazon S3</li>
+      <li>Every grade change is audit-logged</li>
+    </ul>
+  </div>
+  <p class="small">Served by {{ server.task_id or server.hostname }}{% if server.az %} · {{ server.az }}{% endif %}</p>
+</aside>

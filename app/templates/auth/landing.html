@@ -1,0 +1,46 @@
+{% extends "layouts/public.html" %}
+{% block title %}Student Portal · Course work, submissions and grades{% endblock %}
+{% block body %}
+<header class="l-nav">
+  <a class="l-brand" href="{{ url_for('auth.landing') }}"><span class="mark">SP</span>Student Portal</a>
+  <span class="spacer"></span>
+  <a class="btn secondary" href="{{ url_for('auth.login') }}">Sign in</a>
+</header>
+
+<section class="l-hero">
+  <div>
+    <p class="eyebrow">Department of Computer Engineering</p>
+    <h1>Course materials, assignments and grades in one place.</h1>
+    <p class="lede">Faculty publish materials and assignments, then grade submissions with feedback.
+      Students join courses with a code, submit work before the deadline and track their progress.</p>
+  </div>
+  <div class="role-cards">
+    <a class="role-card student" href="{{ url_for('auth.signup', role='student') }}">
+      <span class="tag">For students</span>
+      <h3>Join your courses →</h3>
+      <p>See what's due, download lecture notes, upload submissions and read your feedback.</p>
+    </a>
+    <a class="role-card teacher" href="{{ url_for('auth.signup', role='teacher') }}">
+      <span class="tag">For faculty</span>
+      <h3>Run your courses →</h3>
+      <p>Publish assignments, grade with feedback, export gradebooks and spot students who need help.</p>
+    </a>
+  </div>
+</section>
+
+<section class="l-stack">
+  <div class="l-stack-in">
+    <h2>How it runs</h2>
+    <p>Deployed on AWS with infrastructure as code and a fully automated delivery pipeline.</p>
+    <div class="pipeline">
+      <div><strong>CodePipeline</strong>git push → test → build → deploy</div>
+      <div><strong>Application Load Balancer</strong>traffic across 2 availability zones</div>
+      <div><strong>ECS Fargate</strong>2–6 containers, auto scaled on CPU and requests</div>
+      <div><strong>RDS PostgreSQL</strong>private subnets, encrypted</div>
+      <div><strong>Amazon S3</strong>private, encrypted file storage</div>
+      <div><strong>CloudWatch</strong>structured logs, metrics, dashboard</div>
+    </div>
+  </div>
+</section>
+<footer class="l-foot">Served by {{ server.task_id or server.hostname }}{% if server.az %} in {{ server.az }}{% endif %}</footer>
+{% endblock %}

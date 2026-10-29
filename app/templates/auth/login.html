@@ -1,0 +1,23 @@
+{% extends "layouts/public.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Sign in · Student Portal{% endblock %}
+{% block body %}
+<div class="auth">
+  {% include "auth/_art.html" %}
+  <main class="auth-form">
+    <div class="auth-card">
+      <h1>Sign in</h1>
+      <p class="sub">Faculty and students use the same sign-in; you'll land in your own workspace.</p>
+      {{ ui.flashes() }}
+      <form method="post">
+        {{ ui.csrf() }}
+        <label>Email<input type="email" name="email" value="{{ email or '' }}" autocomplete="username" required autofocus></label>
+        <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+        <label class="check"><input type="checkbox" name="remember" value="1"> Keep me signed in on this device</label>
+        <button class="btn block" type="submit">Sign in</button>
+      </form>
+      <p class="small muted mt">New here? <a href="{{ url_for('auth.signup') }}">Create an account</a></p>
+    </div>
+  </main>
+</div>
+{% endblock %}

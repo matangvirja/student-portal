@@ -1,0 +1,35 @@
+{% import "partials/ui.html" as ui with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Home{% endblock %} · Student Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/student.css') }}">
+</head>
+<body class="student">
+<header class="s-nav">
+  <div class="s-nav-in">
+    <a class="s-brand" href="{{ url_for('student.dashboard') }}"><span class="dot"></span>Student Portal</a>
+    <nav class="s-links" aria-label="Student navigation">
+      <a href="{{ url_for('student.dashboard') }}" class="{{ 'active' if request.endpoint in ('student.dashboard', 'student.course', 'student.assignment') }}">Home</a>
+      <a href="{{ url_for('student.grades') }}" class="{{ 'active' if request.endpoint == 'student.grades' }}">Grades</a>
+    </nav>
+    <div class="s-me">
+      <span class="avatar">{{ current_user.initials }}</span>
+      <div class="who"><strong>{{ current_user.name }}</strong><div class="small muted">{{ current_user.roll_number }}</div></div>
+      <form method="post" action="{{ url_for('auth.logout') }}" class="inline">{{ ui.csrf() }}<button class="linkbtn" type="submit">Sign out</button></form>
+    </div>
+  </div>
+</header>
+<main class="s-content">
+  {{ ui.flashes() }}
+  {% block content %}{% endblock %}
+</main>
+<footer class="s-foot">Served by {{ server.task_id or server.hostname }}{% if server.az %} in {{ server.az }}{% endif %}</footer>
+</body>
+</html>

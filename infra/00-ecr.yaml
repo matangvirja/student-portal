@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Student Portal (stack 1 of 3) - ECR repository that stores the app's Docker images
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: student-portal
+    AllowedPattern: '^[a-z][a-z0-9-]{2,20}$'
+    Description: Lowercase name used to prefix every resource (max 21 chars)
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref ProjectName
+      EmptyOnDelete: true
+      ImageTagMutability: MUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true          # free basic vulnerability scan on every push
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [{
+              "rulePriority": 1,
+              "description": "Keep only the 15 most recent images",
+              "selection": {"tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": 15},
+              "action": {"type": "expire"}
+            }]
+          }
+
+Outputs:
+  RepositoryName:
+    Value: !Ref Repository
+    Export:
+      Name: !Sub '${ProjectName}-RepositoryName'
+  RepositoryUri:
+    Value: !GetAtt Repository.RepositoryUri
+    Export:
+      Name: !Sub '${ProjectName}-RepositoryUri'

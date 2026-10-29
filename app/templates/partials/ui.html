@@ -1,0 +1,36 @@
+{# Shared UI macros. Import with:  {% import "partials/ui.html" as ui with context %} #}
+
+{% macro csrf() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}
+
+{% macro flashes() -%}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for category, message in messages %}
+    <div class="flash {{ category }}" role="status">{{ message }}</div>
+  {% endfor %}
+{% endwith %}
+{%- endmacro %}
+
+{% macro chip(status) -%}
+<span class="chip {{ status[0] }}">{{ status[1] }}</span>
+{%- endmacro %}
+
+{% macro bar(percent, cls="") -%}
+<div class="bar {{ cls }}" role="img" aria-label="{{ percent }}%"><span style="width: {{ [percent, 100]|min }}%"></span></div>
+{%- endmacro %}
+
+{% macro ext(filename) -%}
+{{ (filename.rsplit('.', 1)[-1] if '.' in filename else 'file')[:4] }}
+{%- endmacro %}
+
+{% macro icon(name) -%}
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == "grid" -%}<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+{%- elif name == "chart" -%}<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
+{%- elif name == "plus" -%}<path d="M12 5v14M5 12h14"/>
+{%- elif name == "book" -%}<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 19.5V4.5"/>
+{%- elif name == "download" -%}<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}

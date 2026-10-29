@@ -1,0 +1,90 @@
+{% extends "layouts/teacher.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Overview{% endblock %}
+{% block crumbs %}<span class="here">Overview</span>{% endblock %}
+{% block content %}
+<div class="page-h">
+  <div>
+    <p class="eyebrow">{{ now|localdt('%A, %d %B %Y') }}</p>
+    <h1>Welcome back, {{ current_user.name }}</h1>
+  </div>
+  <a class="btn" href="{{ url_for('teacher.course_new') }}">New course</a>
+</div>
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="k">Courses</div><div class="v">{{ kpis.courses }}</div><div class="d">you teach</div></div>
+  <div class="kpi"><div class="k">Students</div><div class="v">{{ kpis.students }}</div><div class="d">enrolled across courses</div></div>
+  <div class="kpi {{ 'alert' if kpis.to_grade }}"><div class="k">Awaiting grading</div><div class="v">{{ kpis.to_grade }}</div><div class="d">submissions</div></div>
+  <div class="kpi"><div class="k">Submissions</div><div class="v">{{ kpis.week }}</div><div class="d">in the last 7 days</div></div>
+</div>
+
+{% if not course_rows %}
+  <div class="panel mt"><div class="panel-b">
+    <div class="empty">
+      <p><strong>No courses yet.</strong></p>
+      <p>Create a course to get a 6-character join code that students use to enrol.</p>
+      <a class="btn" href="{{ url_for('teacher.course_new') }}">Create your first course</a>
+    </div>
+  </div></div>
+{% else %}
+<div class="grid cols-2 mt">
+  <section class="panel">
+    <div class="panel-h"><h2>Upcoming deadlines</h2></div>
+    {% if upcoming %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Assignment</th><th>Due</th><th>Submitted</th></tr></thead>
+      <tbody>
+      {% for row in upcoming %}
+        <tr>
+          <td><a class="cell-title" href="{{ url_for('teacher.assignment', assignment_id=row.a.id) }}">{{ row.a.title }}</a>
+              <span class="cell-sub mono">{{ row.a.course.code }}</span></td>
+          <td class="nowrap">{{ row.a.due_at|localdt('%d %b, %I:%M %p') }}<span class="cell-sub">{{ row.a.due_at|due_in }}</span></td>
+          <td><div class="progress">{{ ui.bar(pct(row.submitted, row.enrolled)) }}<span class="n">{{ row.submitted }}/{{ row.enrolled }}</span></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="panel-b"><p class="muted">No open assignments. Publish one from a course page.</p></div>{% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>Latest submissions</h2></div>
+    {% if recent %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Student</th><th>Assignment</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for s in recent %}
+        <tr>
+          <td>{{ s.student.name }}<span class="cell-sub">{{ s.submitted_at|due_in }}</span></td>
+          <td>{{ s.assignment.title|truncate(34) }}<span class="cell-sub mono">{{ s.assignment.course.code }}</span></td>
+          <td>{% if s.is_graded %}<span class="chip graded">{{ s.marks|marks }}/{{ s.assignment.max_marks }}</span>
+              {% elif s.is_late %}<span class="chip late">Late</span>{% else %}<span class="chip submitted">New</span>{% endif %}</td>
+          <td class="num"><a href="{{ url_for('teacher.assignment', assignment_id=s.assignment_id) }}#s{{ s.student_id }}">{{ 'Review' if s.is_graded else 'Grade' }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="panel-b"><p class="muted">Nothing submitted yet.</p></div>{% endif %}
+  </section>
+</div>
+
+<section class="panel mt">
+  <div class="panel-h"><h2>Courses</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Code</th><th>Title</th><th>Semester</th><th class="num">Students</th><th class="num">Assignments</th><th>Join code</th></tr></thead>
+    <tbody>
+    {% for row in course_rows %}
+      <tr>
+        <td class="mono">{{ row.c.code }}</td>
+        <td><a class="cell-title" href="{{ url_for('teacher.course', course_id=row.c.id) }}">{{ row.c.title }}</a></td>
+        <td class="muted">{{ row.c.semester or '—' }}</td>
+        <td class="num">{{ row.students }}</td>
+        <td class="num">{{ row.assignments }}</td>
+        <td class="mono">{{ row.c.join_code }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+{% endblock %}

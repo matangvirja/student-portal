@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+instance
+infra
+scripts
+loadtest
+*.md
+.pytest_cache

@@ -1,0 +1,61 @@
+{% extends "layouts/student.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}{{ a.title }}{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('student.course', course_id=a.course_id) }}">← {{ a.course.code }} · {{ a.course.title }}</a>
+
+<div class="s-grid">
+  <section class="card">
+    <div class="row"><span class="eyebrow" style="margin:0">{{ a.course.code }}</span><span class="spacer"></span>{{ ui.chip(status) }}</div>
+    <h1 style="font-size:1.6rem; margin:8px 0 10px; font-weight:800">{{ a.title }}</h1>
+    <div class="facts">
+      <div><span>Due</span><strong>{{ a.due_at|localdt('%a %d %b, %I:%M %p') }}</strong></div>
+      <div><span>{{ 'Time left' if a.is_open else 'Closed' }}</span><strong>{{ a.due_at|due_in }}</strong></div>
+      <div><span>Marks</span><strong>{{ a.max_marks }}</strong></div>
+    </div>
+    {% if a.description %}<p class="prose">{{ a.description }}</p>{% else %}<p class="muted">No extra instructions.</p>{% endif %}
+    {% if a.attachment_key %}
+      <a class="filelink mt" href="{{ url_for('files.assignment_brief', assignment_id=a.id) }}">
+        <span class="ico">{{ ui.ext(a.attachment_name) }}</span>
+        <span><span class="name">{{ a.attachment_name }}</span><span class="small muted">Assignment brief from your instructor</span></span>
+      </a>
+    {% endif %}
+  </section>
+
+  <aside>
+    {% if sub and sub.is_graded %}
+    <section class="card">
+      <p class="eyebrow">Your grade</p>
+      <div class="big-score">{{ sub.marks|marks }}<small> / {{ a.max_marks }}</small></div>
+      <p class="muted small mt-sm">{{ sub.percent }}% · graded {{ sub.graded_at|localdt('%d %b %Y') }}</p>
+      {% if sub.feedback %}<div class="feedback"><p class="eyebrow">Feedback</p><p class="prose" style="margin:0">{{ sub.feedback }}</p></div>{% endif %}
+    </section>
+    {% endif %}
+
+    <section class="card {{ 'mt' if sub and sub.is_graded }}">
+      <div class="card-h"><h2>Your submission</h2></div>
+      {% if sub %}
+        <a class="filelink" href="{{ url_for('files.submission', submission_id=sub.id) }}">
+          <span class="ico">{{ ui.ext(sub.filename) }}</span>
+          <span><span class="name">{{ sub.filename }}</span>
+            <span class="small muted">{{ sub.size_bytes|filesize }} · {{ sub.submitted_at|localdt('%d %b, %I:%M %p') }}{% if sub.is_late %} · late{% endif %}</span></span>
+        </a>
+      {% else %}
+        <p class="muted small">Nothing submitted yet.</p>
+      {% endif %}
+
+      {% if not (sub and sub.is_graded) %}
+      <form method="post" action="{{ url_for('student.submit', assignment_id=a.id) }}" enctype="multipart/form-data" class="dropzone mt-sm">
+        {{ ui.csrf() }}
+        <label>{{ 'Replace your file' if sub else 'Upload your work' }}<input type="file" name="file" required></label>
+        <button class="btn block" type="submit">{{ 'Resubmit' if sub else 'Submit' }}</button>
+        <p class="hint" style="margin-top:8px">PDF, Office, code, notebook or ZIP · up to 10 MB.
+          {% if not a.is_open %}The deadline has passed, so this will be marked late.{% endif %}</p>
+      </form>
+      {% else %}
+        <p class="muted small">Graded work is locked.</p>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

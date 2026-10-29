@@ -1,0 +1,70 @@
+{% extends "layouts/teacher.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% set active_course_id = a.course_id %}
+{% block title %}{{ a.title }}{% endblock %}
+{% block crumbs %}<a href="{{ url_for('teacher.dashboard') }}">Overview</a><span class="sep">/</span>
+<a href="{{ url_for('teacher.course', course_id=a.course_id) }}">{{ a.course.code }}</a><span class="sep">/</span><span class="here">{{ a.title|truncate(48) }}</span>{% endblock %}
+{% block content %}
+<div class="page-h">
+  <div>
+    <p class="eyebrow">{{ a.course.code }} · {{ a.max_marks }} marks</p>
+    <h1>{{ a.title }}</h1>
+    <p class="meta">Due {{ a.due_at|localdt }} · {% if a.is_open %}open, closes {{ a.due_at|due_in }}{% else %}closed {{ a.due_at|due_in }}{% endif %}
+      {% if a.attachment_key %} · <a href="{{ url_for('files.assignment_brief', assignment_id=a.id) }}">{{ a.attachment_name }}</a>{% endif %}</p>
+  </div>
+</div>
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="k">Submitted</div><div class="v">{{ summary.submitted }}<small class="muted" style="font-size:1rem">/{{ summary.enrolled }}</small></div>
+    <div class="d">{{ pct(summary.submitted, summary.enrolled) }}% of the class</div></div>
+  <div class="kpi"><div class="k">Late</div><div class="v">{{ summary.late }}</div><div class="d">after the deadline</div></div>
+  <div class="kpi {{ 'alert' if summary.submitted - summary.graded }}"><div class="k">To grade</div><div class="v">{{ summary.submitted - summary.graded }}</div><div class="d">{{ summary.graded }} graded</div></div>
+  <div class="kpi"><div class="k">Class average</div><div class="v">{{ summary.avg|marks }}</div><div class="d">out of {{ a.max_marks }}</div></div>
+</div>
+
+{% if a.description %}
+<section class="panel mt"><div class="panel-h"><h2>Instructions</h2></div><div class="panel-b" style="white-space: pre-line">{{ a.description }}</div></section>
+{% endif %}
+
+<section class="panel mt">
+  <div class="panel-h">
+    <h2>Submissions</h2>
+    <nav class="seg">
+      <a href="{{ url_for('teacher.assignment', assignment_id=a.id, show='all') }}" class="{{ 'active' if show == 'all' }}">All</a>
+      <a href="{{ url_for('teacher.assignment', assignment_id=a.id, show='ungraded') }}" class="{{ 'active' if show == 'ungraded' }}">To grade</a>
+      <a href="{{ url_for('teacher.assignment', assignment_id=a.id, show='missing') }}" class="{{ 'active' if show == 'missing' }}">Missing</a>
+    </nav>
+  </div>
+  {% if rows %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Student</th><th>Status</th><th>Submitted</th><th>File</th><th>Marks &amp; feedback</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set s = r.sub %}
+      <tr id="s{{ r.student.id }}">
+        <td>{{ r.student.name }}<span class="cell-sub mono">{{ r.student.roll_number }}{% if r.left %} · left course{% endif %}</span></td>
+        <td>{% if not s %}<span class="chip {{ 'missing' if not a.is_open else 'neutral' }}">{{ 'Missing' if not a.is_open else 'Not yet' }}</span>
+            {% elif s.is_graded %}<span class="chip graded">Graded</span>{% if s.is_late %} <span class="chip late">Late</span>{% endif %}
+            {% elif s.is_late %}<span class="chip late">Late</span>
+            {% else %}<span class="chip submitted">Submitted</span>{% endif %}</td>
+        <td class="nowrap">{% if s %}{{ s.submitted_at|localdt('%d %b, %I:%M %p') }}{% else %}—{% endif %}</td>
+        <td>{% if s %}<a href="{{ url_for('files.submission', submission_id=s.id) }}" class="mono small">{{ s.filename|truncate(28) }}</a>
+            <span class="cell-sub">{{ s.size_bytes|filesize }}</span>{% else %}—{% endif %}</td>
+        <td>
+          {% if s %}
+          <form method="post" action="{{ url_for('teacher.grade', submission_id=s.id, show=show) }}" class="grade-form">
+            {{ ui.csrf() }}
+            <input type="number" name="marks" step="0.5" min="0" max="{{ a.max_marks }}" value="{{ s.marks|marks if s.is_graded else '' }}" aria-label="Marks for {{ r.student.name }}" required>
+            <span class="of">/ {{ a.max_marks }}</span>
+            <input type="text" name="feedback" value="{{ s.feedback or '' }}" placeholder="Feedback for the student" maxlength="2000" aria-label="Feedback">
+            <button class="btn sm {{ 'secondary' if s.is_graded }}" type="submit">{{ 'Update' if s.is_graded else 'Save' }}</button>
+          </form>
+          {% else %}<span class="muted small">Nothing to grade</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="panel-b"><div class="empty">Nothing in this view.</div></div>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% import "partials/ui.html" as ui with context %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Faculty Console{% endblock %} · Student Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/teacher.css') }}">
+</head>
+<body class="teacher">
+<div class="t-shell">
+  <aside class="t-side">
+    <a class="t-brand" href="{{ url_for('teacher.dashboard') }}">
+      <span class="logo">SP</span>
+      <span>Student Portal<small>Faculty Console</small></span>
+    </a>
+    <nav class="t-nav" aria-label="Faculty navigation">
+      <a href="{{ url_for('teacher.dashboard') }}" class="{{ 'active' if request.endpoint == 'teacher.dashboard' }}">{{ ui.icon('grid') }}<span class="label">Overview</span></a>
+      <a href="{{ url_for('teacher.analytics') }}" class="{{ 'active' if request.endpoint == 'teacher.analytics' }}">{{ ui.icon('chart') }}<span class="label">Analytics</span></a>
+      <div class="section">My courses</div>
+      {% for c in my_courses %}
+        <a href="{{ url_for('teacher.course', course_id=c.id) }}" class="course-link {{ 'active' if active_course_id == c.id }}">
+          <span class="code">{{ c.code }}</span><span class="label">{{ c.title }}</span>
+        </a>
+      {% endfor %}
+      <a href="{{ url_for('teacher.course_new') }}" class="{{ 'active' if request.endpoint == 'teacher.course_new' }}">{{ ui.icon('plus') }}<span class="label">New course</span></a>
+    </nav>
+    <div class="t-user">
+      <span class="avatar">{{ current_user.initials }}</span>
+      <div class="who">
+        <strong>{{ current_user.name }}</strong>
+        <form method="post" action="{{ url_for('auth.logout') }}" class="inline">{{ ui.csrf() }}<button class="linkbtn" type="submit">Sign out</button></form>
+      </div>
+    </div>
+  </aside>
+
+  <div class="t-main">
+    <header class="t-top">
+      <div class="crumbs">{% block crumbs %}{% endblock %}</div>
+      <span class="node" title="ECS task / availability zone that served this page">{{ server.task_id or server.hostname }}{% if server.az %} · {{ server.az }}{% endif %}</span>
+    </header>
+    <main class="t-content">
+      {{ ui.flashes() }}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

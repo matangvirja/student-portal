@@ -1,0 +1,39 @@
+{% extends "layouts/student.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Grades{% endblock %}
+{% block content %}
+<div class="row" style="margin-bottom: 18px">
+  <div><h1 style="margin:0; font-weight:800">Grades</h1><p class="muted" style="margin:0">Scores and feedback across your courses.</p></div>
+  <span class="spacer"></span>
+  <div class="card" style="padding:12px 18px"><span class="eyebrow">Overall average</span>
+    <div class="big-score" style="font-size:1.8rem">{% if overall is not none %}{{ overall }}%{% else %}—{% endif %}</div></div>
+</div>
+
+{% for g in groups %}
+<section class="card mt">
+  <div class="card-h">
+    <h2><span class="swatch c{{ g.color }}"></span> {{ g.c.code }} · {{ g.c.title }}</h2>
+    <span class="score">{% if g.percent is not none %}{{ g.percent }}%{% else %}<span class="muted small">no grades yet</span>{% endif %}</span>
+  </div>
+  {% if g.out_of %}{{ ui.bar(g.percent) }}<p class="small muted mt-sm">{{ g.scored|marks }} of {{ g.out_of }} marks on graded work</p>{% endif %}
+  {% if g.rows %}
+  <div class="table-wrap mt-sm"><table>
+    <thead><tr><th>Assignment</th><th>Due</th><th>Status</th><th class="num">Marks</th></tr></thead>
+    <tbody>
+    {% for r in g.rows %}
+      <tr>
+        <td><a href="{{ url_for('student.assignment', assignment_id=r.a.id) }}">{{ r.a.title }}</a>
+            {% if r.sub and r.sub.feedback %}<div class="small muted">“{{ r.sub.feedback|truncate(90) }}”</div>{% endif %}</td>
+        <td class="nowrap">{{ r.a.due_at|localdt('%d %b') }}</td>
+        <td>{{ ui.chip(r.status) }}</td>
+        <td class="num"><strong>{% if r.sub and r.sub.is_graded %}{{ r.sub.marks|marks }}{% else %}—{% endif %}</strong> / {{ r.a.max_marks }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted small">No assignments yet.</p>{% endif %}
+</section>
+{% else %}
+<section class="card"><div class="empty">Join a course to see grades here.</div></section>
+{% endfor %}
+{% endblock %}

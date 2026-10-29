@@ -1,0 +1,87 @@
+{% extends "layouts/teacher.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Analytics{% endblock %}
+{% block crumbs %}<a href="{{ url_for('teacher.dashboard') }}">Overview</a><span class="sep">/</span><span class="here">Analytics</span>{% endblock %}
+{% block content %}
+{% if not course %}
+  <div class="page-h"><h1>Analytics</h1></div>
+  <div class="panel"><div class="panel-b"><div class="empty">Create a course to see analytics.</div></div></div>
+{% else %}
+<div class="page-h">
+  <div><p class="eyebrow">Course analytics</p><h1>{{ course.code }} · {{ course.title }}</h1></div>
+  <form method="get" class="row">
+    <label class="sr-only" for="course-pick">Course</label>
+    <select id="course-pick" name="course" style="margin:0; width:auto">
+      {% for c in my_courses %}<option value="{{ c.id }}" {{ 'selected' if c.id == course.id }}>{{ c.code }} · {{ c.title }}</option>{% endfor %}
+    </select>
+    <button class="btn secondary" type="submit">View</button>
+  </form>
+</div>
+
+<div class="grid cols-4">
+  <div class="kpi"><div class="k">Enrolled</div><div class="v">{{ kpis.enrolled }}</div><div class="d">students</div></div>
+  <div class="kpi"><div class="k">Assignments</div><div class="v">{{ kpis.assignments }}</div><div class="d">published</div></div>
+  <div class="kpi"><div class="k">Average score</div><div class="v">{% if kpis.avg is not none %}{{ kpis.avg }}%{% else %}—{% endif %}</div><div class="d">across graded work</div></div>
+  <div class="kpi"><div class="k">Completion</div><div class="v">{% if kpis.completion is not none %}{{ kpis.completion }}%{% else %}—{% endif %}</div><div class="d">of past-due work submitted</div></div>
+</div>
+
+<div class="split mt">
+  <section class="panel">
+    <div class="panel-h"><h2>By assignment</h2></div>
+    {% if per_assignment %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Assignment</th><th>Submission rate</th><th class="num">On time</th><th class="num">Avg score</th><th class="num">Graded</th></tr></thead>
+      <tbody>
+      {% for r in per_assignment %}
+        <tr>
+          <td><a class="cell-title" href="{{ url_for('teacher.assignment', assignment_id=r.a.id) }}">{{ r.a.title|truncate(40) }}</a>
+              <span class="cell-sub">due {{ r.a.due_at|localdt('%d %b') }}</span></td>
+          <td><div class="progress">{{ ui.bar(r.submission_rate, 'bad' if r.submission_rate < 50 and not r.a.is_open else ('warn' if r.submission_rate < 80 and not r.a.is_open else '')) }}<span class="n">{{ r.submission_rate }}%</span></div></td>
+          <td class="num">{% if r.on_time_rate is not none %}{{ r.on_time_rate }}%{% else %}—{% endif %}</td>
+          <td class="num">{% if r.avg is not none %}{{ r.avg }}%{% else %}—{% endif %}</td>
+          <td class="num">{{ r.graded }}/{{ r.submitted }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="panel-b"><div class="empty">No assignments yet.</div></div>{% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>Grade distribution</h2></div>
+    <div class="panel-b">
+      <div class="dist" role="img" aria-label="Grade distribution">
+        {% for d in distribution %}
+          <div class="col">
+            <span class="n">{{ d.count }}</span>
+            <span class="b" style="height: {{ (d.count / peak * 100)|round(0) }}%"></span>
+            <span class="lbl"><strong>{{ d.band }}</strong>{{ d.range }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      <p class="small muted mt-sm">Each graded submission, banded by percentage.</p>
+    </div>
+  </section>
+</div>
+
+<section class="panel mt">
+  <div class="panel-h"><h2>Students who may need support</h2><span class="small muted">missed 2+ deadlines, or average below 40%</span></div>
+  {% if at_risk %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Roll no.</th><th>Name</th><th class="num">Missed deadlines</th><th class="num">Average</th><th>Contact</th></tr></thead>
+    <tbody>
+    {% for r in at_risk %}
+      <tr>
+        <td class="mono">{{ r.student.roll_number }}</td>
+        <td>{{ r.student.name }}</td>
+        <td class="num">{{ r.missed }}</td>
+        <td class="num">{% if r.avg is not none %}{{ r.avg }}%{% else %}—{% endif %}</td>
+        <td><a href="mailto:{{ r.student.email }}">{{ r.student.email }}</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="panel-b"><p class="muted">No one flagged right now.</p></div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

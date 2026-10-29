@@ -1,0 +1,495 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Student Portal (stack 2 of 3) - VPC, Application Load Balancer, ECS Fargate service with
+  auto scaling, RDS PostgreSQL, S3 uploads bucket, Secrets Manager and a CloudWatch dashboard.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: student-portal
+    AllowedPattern: '^[a-z][a-z0-9-]{2,20}$'
+  ImageTag:
+    Type: String
+    Default: bootstrap
+    Description: Image tag for the first deployment. After that, CodePipeline deploys new images.
+  DesiredCount:
+    Type: Number
+    Default: 2
+  MinTasks:
+    Type: Number
+    Default: 2
+  MaxTasks:
+    Type: Number
+    Default: 6
+  CpuTargetPercent:
+    Type: Number
+    Default: 50
+    Description: Auto scaling keeps average service CPU around this value
+  RequestsPerTargetPerMinute:
+    Type: Number
+    Default: 1000
+    Description: Second scaling signal - ALB requests per task per minute
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+  AppTimezone:
+    Type: String
+    Default: Asia/Kolkata
+    Description: Time zone used to display and enter deadlines
+
+Resources:
+  # ---------------------------------------------------------------- Network
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-vpc'}]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-igw'}]
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public-a'}]
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public-b'}]
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-private-a'}]
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-private-b'}]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-public-rt'}]
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  # Private subnets have no route to the internet at all - only the database lives here.
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{Key: Name, Value: !Sub '${ProjectName}-private-rt'}]
+
+  PrivateSubnetARoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRoute:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  # ---------------------------------------------------------------- Security groups (layered)
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internet to load balancer (HTTP)
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0}
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Load balancer to app containers only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 5000, ToPort: 5000, SourceSecurityGroupId: !Ref AlbSecurityGroup}
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: App containers to PostgreSQL only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref AppSecurityGroup}
+
+  # ---------------------------------------------------------------- Storage & secrets
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+
+  UploadsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UploadsBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt UploadsBucket.Arn, !Sub '${UploadsBucket.Arn}/*']
+            Condition: {Bool: {'aws:SecureTransport': 'false'}}
+
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub '${ProjectName} RDS master credentials'
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "portaladmin"}'
+        GenerateStringKey: password
+        PasswordLength: 24
+        ExcludePunctuation: true
+
+  TeacherInviteCode:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub '${ProjectName} faculty access code (required to create a teacher account)'
+      GenerateSecretString:
+        PasswordLength: 12
+        ExcludePunctuation: true
+
+  AppSecretKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: !Sub '${ProjectName} Flask SECRET_KEY (signs session cookies, shared by all tasks)'
+      GenerateSecretString:
+        PasswordLength: 48
+        ExcludePunctuation: true
+
+  # ---------------------------------------------------------------- Database
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub '${ProjectName} private subnets'
+      SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete            # student project: no leftover cost after teardown
+    UpdateReplacePolicy: Delete
+    Properties:
+      Engine: postgres
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: '20'
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: portal
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DbSecret}:SecretString:password}}'
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups: [!GetAtt DbSecurityGroup.GroupId]
+      PubliclyAccessible: false
+      MultiAZ: false                  # set true for production-style HA (doubles DB cost)
+      BackupRetentionPeriod: 1
+      DeletionProtection: false
+      AutoMinorVersionUpgrade: true
+
+  # ---------------------------------------------------------------- ECS
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-cluster'
+      ClusterSettings:
+        - {Name: containerInsights, Value: enabled}
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/ecs/${ProjectName}'
+      RetentionInDays: 14
+
+  # Used by ECS itself: pull the image from ECR, write logs, read secrets at startup.
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - {Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: 'sts:AssumeRole'}
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+      Policies:
+        - PolicyName: read-app-secrets
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: 'secretsmanager:GetSecretValue'
+                Resource: [!Ref DbSecret, !Ref AppSecretKey, !Ref TeacherInviteCode]
+
+  # Used by the app code: least-privilege access to the uploads bucket only.
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - {Effect: Allow, Principal: {Service: ecs-tasks.amazonaws.com}, Action: 'sts:AssumeRole'}
+      Policies:
+        - PolicyName: uploads-bucket-access
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: ['s3:PutObject', 's3:GetObject', 's3:DeleteObject']
+                Resource: !Sub '${UploadsBucket.Arn}/*'
+              - Effect: Allow
+                Action: 's3:ListBucket'
+                Resource: !GetAtt UploadsBucket.Arn
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-task'
+      Cpu: '256'           # 0.25 vCPU
+      Memory: '512'        # 0.5 GB
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      RuntimePlatform: {CpuArchitecture: X86_64, OperatingSystemFamily: LINUX}
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: web        # must match "name" in imagedefinitions.json (buildspec.yml)
+          Image: !Sub
+            - '${RepoUri}:${ImageTag}'
+            - RepoUri:
+                Fn::ImportValue: !Sub '${ProjectName}-RepositoryUri'
+          Essential: true
+          PortMappings:
+            - {ContainerPort: 5000, Protocol: tcp}
+          Environment:
+            - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
+            - {Name: S3_BUCKET, Value: !Ref UploadsBucket}
+            - {Name: DB_HOST, Value: !GetAtt Database.Endpoint.Address}
+            - {Name: DB_PORT, Value: !GetAtt Database.Endpoint.Port}
+            - {Name: DB_NAME, Value: portal}
+            - {Name: ENABLE_LOAD_ENDPOINT, Value: 'true'}
+            - {Name: APP_TIMEZONE, Value: !Ref AppTimezone}
+          Secrets:
+            - {Name: DB_USER, ValueFrom: !Sub '${DbSecret}:username::'}
+            - {Name: DB_PASSWORD, ValueFrom: !Sub '${DbSecret}:password::'}
+            - {Name: SECRET_KEY, ValueFrom: !Ref AppSecretKey}
+            - {Name: TEACHER_INVITE_CODE, ValueFrom: !Ref TeacherInviteCode}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: web
+
+  # ---------------------------------------------------------------- Load balancer
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${ProjectName}-alb'
+      Type: application
+      Scheme: internet-facing
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      SecurityGroups: [!Ref AlbSecurityGroup]
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref Vpc
+      Port: 5000
+      Protocol: HTTP
+      TargetType: ip                  # required for Fargate (awsvpc networking)
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 15
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher: {HttpCode: '200'}
+      TargetGroupAttributes:
+        - {Key: deregistration_delay.timeout_seconds, Value: '30'}
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - {Type: forward, TargetGroupArn: !Ref TargetGroup}
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: HttpListener
+    Properties:
+      ServiceName: !Sub '${ProjectName}-service'
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref TaskDefinition
+      HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100    # rolling update with zero downtime
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true              # bad deploys roll back automatically
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED     # lets tasks reach ECR/S3/Secrets Manager without a NAT gateway
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+          SecurityGroups: [!Ref AppSecurityGroup]
+      LoadBalancers:
+        - {ContainerName: web, ContainerPort: 5000, TargetGroupArn: !Ref TargetGroup}
+
+  # ---------------------------------------------------------------- Auto scaling
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ResourceId: !Sub 'service/${Cluster}/${Service.Name}'
+      MinCapacity: !Ref MinTasks
+      MaxCapacity: !Ref MaxTasks
+
+  CpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${ProjectName}-cpu-target-tracking'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: !Ref CpuTargetPercent
+        ScaleOutCooldown: 60
+        ScaleInCooldown: 120
+
+  RequestScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub '${ProjectName}-requests-target-tracking'
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ALBRequestCountPerTarget
+          ResourceLabel: !Sub '${LoadBalancer.LoadBalancerFullName}/${TargetGroup.TargetGroupFullName}'
+        TargetValue: !Ref RequestsPerTargetPerMinute
+        ScaleOutCooldown: 60
+        ScaleInCooldown: 120
+
+  # ---------------------------------------------------------------- Monitoring
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {"type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+             "properties": {"title": "Service CPU % (scales out above ${CpuTargetPercent}%)", "region": "${AWS::Region}",
+               "stat": "Average", "period": 60, "view": "timeSeries",
+               "metrics": [["AWS/ECS", "CPUUtilization", "ClusterName", "${Cluster}", "ServiceName", "${Service.Name}"]]}},
+            {"type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+             "properties": {"title": "Running tasks (auto scaling)", "region": "${AWS::Region}",
+               "stat": "Average", "period": 60, "view": "timeSeries",
+               "metrics": [["ECS/ContainerInsights", "RunningTaskCount", "ClusterName", "${Cluster}", "ServiceName", "${Service.Name}"]]}},
+            {"type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+             "properties": {"title": "ALB requests per minute", "region": "${AWS::Region}",
+               "stat": "Sum", "period": 60, "view": "timeSeries",
+               "metrics": [["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${LoadBalancer.LoadBalancerFullName}"]]}},
+            {"type": "metric", "x": 12, "y": 6, "width": 12, "height": 6,
+             "properties": {"title": "Healthy targets behind the ALB", "region": "${AWS::Region}",
+               "stat": "Minimum", "period": 60, "view": "timeSeries",
+               "metrics": [["AWS/ApplicationELB", "HealthyHostCount", "TargetGroup", "${TargetGroup.TargetGroupFullName}", "LoadBalancer", "${LoadBalancer.LoadBalancerFullName}"]]}},
+            {"type": "metric", "x": 0, "y": 12, "width": 12, "height": 6,
+             "properties": {"title": "Response time p90 (seconds)", "region": "${AWS::Region}",
+               "stat": "p90", "period": 60, "view": "timeSeries",
+               "metrics": [["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "${LoadBalancer.LoadBalancerFullName}"]]}},
+            {"type": "metric", "x": 12, "y": 12, "width": 12, "height": 6,
+             "properties": {"title": "Database CPU %", "region": "${AWS::Region}",
+               "stat": "Average", "period": 60, "view": "timeSeries",
+               "metrics": [["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${Database}"]]}}
+          ]
+        }
+
+Outputs:
+  AppUrl:
+    Description: Open this in your browser
+    Value: !Sub 'http://${LoadBalancer.DNSName}'
+  UploadsBucketName:
+    Value: !Ref UploadsBucket
+  ClusterName:
+    Value: !Ref Cluster
+    Export:
+      Name: !Sub '${ProjectName}-ClusterName'
+  ServiceName:
+    Value: !GetAtt Service.Name
+    Export:
+      Name: !Sub '${ProjectName}-ServiceName'
+  TeacherInviteSecretArn:
+    Description: "Read the faculty access code with: aws secretsmanager get-secret-value --secret-id <this ARN>"
+    Value: !Ref TeacherInviteCode
+  TaskDefinitionFamily:
+    Value: !Sub '${ProjectName}-task'
+  TaskSubnets:
+    Value: !Sub '${PublicSubnetA},${PublicSubnetB}'
+  AppSecurityGroupId:
+    Value: !Ref AppSecurityGroup
+  DatabaseEndpoint:
+    Value: !GetAtt Database.Endpoint.Address
+  LogGroupName:
+    Value: !Ref LogGroup
+  DashboardUrl:
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${Dashboard}'

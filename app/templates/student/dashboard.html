@@ -1,0 +1,96 @@
+{% extends "layouts/student.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Hi {{ current_user.first_name }}!</h1>
+    <p>{% if todo %}You have {{ due_this_week }} assignment{{ 's' if due_this_week != 1 }} due in the next 7 days.
+       {% elif course_cards %}You're all caught up. Nice work.
+       {% else %}Join your first course with the code your instructor shared.{% endif %}</p>
+  </div>
+  <form class="join" method="post" action="{{ url_for('student.join') }}">
+    {{ ui.csrf() }}
+    <label for="join_code">Join a course</label>
+    <div class="row">
+      <input id="join_code" name="join_code" maxlength="12" placeholder="CODE" autocomplete="off" required>
+      <button class="btn" type="submit">Join</button>
+    </div>
+  </form>
+</section>
+
+{% if course_cards %}
+<div class="s-grid mt">
+  <div>
+    <section class="card">
+      <div class="card-h"><h2>Up next</h2><span class="muted small">{{ todo|length }} open</span></div>
+      {% for i in todo[:6] %}
+        <a class="task" href="{{ url_for('student.assignment', assignment_id=i.a.id) }}">
+          <div class="datebox"><div class="d">{{ i.a.due_at|localdt('%d') }}</div><div class="m">{{ i.a.due_at|localdt('%b') }}</div></div>
+          <div class="body">
+            <div class="t">{{ i.a.title }}</div>
+            <div class="when"><span class="swatch c{{ i.color }}"></span>{{ i.a.course.code }} · due {{ i.a.due_at|due_in }}, {{ i.a.due_at|localdt('%I:%M %p') }}</div>
+          </div>
+          {{ ui.chip(i.status) }}
+        </a>
+      {% else %}
+        <p class="muted">Nothing due. Check back after your next class.</p>
+      {% endfor %}
+    </section>
+
+    {% if overdue %}
+    <section class="card mt">
+      <div class="card-h"><h2>Missed deadlines</h2><span class="chip overdue">{{ overdue|length }}</span></div>
+      {% for i in overdue[:5] %}
+        <a class="task" href="{{ url_for('student.assignment', assignment_id=i.a.id) }}">
+          <div class="body"><div class="t">{{ i.a.title }}</div>
+            <div class="when"><span class="swatch c{{ i.color }}"></span>{{ i.a.course.code }} · closed {{ i.a.due_at|due_in }}. Late submissions are still accepted.</div></div>
+          {{ ui.chip(i.status) }}
+        </a>
+      {% endfor %}
+    </section>
+    {% endif %}
+  </div>
+
+  <aside>
+    <section class="card">
+      <div class="card-h"><h2>Your progress</h2></div>
+      <div class="ring" style="--p: {{ completion }}"><div><strong>{{ completion }}%</strong><span>submitted</span></div></div>
+      <div class="statline"><span>Assignments submitted</span><strong>{{ submitted }} / {{ total }}</strong></div>
+      <div class="statline"><span>Average grade</span><strong>{% if average is not none %}{{ average }}%{% else %}—{% endif %}</strong></div>
+      <div class="statline"><span>Courses</span><strong>{{ course_cards|length }}</strong></div>
+    </section>
+
+    <section class="card mt">
+      <div class="card-h"><h2>Recently graded</h2><a class="small" href="{{ url_for('student.grades') }}">All grades</a></div>
+      {% for i in recent_grades %}
+        <a class="task" href="{{ url_for('student.assignment', assignment_id=i.a.id) }}">
+          <div class="body"><div class="t">{{ i.a.title }}</div><div class="when">{{ i.a.course.code }} · {{ i.sub.graded_at|due_in }}</div></div>
+          <span class="score">{{ i.sub.marks|marks }}<span class="muted small">/{{ i.a.max_marks }}</span></span>
+        </a>
+      {% else %}
+        <p class="muted small">Grades appear here once your instructor marks your work.</p>
+      {% endfor %}
+    </section>
+  </aside>
+</div>
+
+<h2 class="section-title">My courses</h2>
+<div class="grid cols-3">
+  {% for card in course_cards %}
+    <a class="course-card c{{ card.color }}" href="{{ url_for('student.course', course_id=card.c.id) }}">
+      <span class="code">{{ card.c.code }}</span>
+      <h3>{{ card.c.title }}</h3>
+      <span class="meta">{{ card.c.teacher.name }} · {{ card.open }} open task{{ 's' if card.open != 1 }}</span>
+    </a>
+  {% endfor %}
+</div>
+{% else %}
+<section class="card mt">
+  <div class="empty">
+    <p><strong>You're not enrolled in any course yet.</strong></p>
+    <p>Your instructor will share a 6-character join code in class. Enter it above.</p>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

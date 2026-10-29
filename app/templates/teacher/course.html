@@ -1,0 +1,138 @@
+{% extends "layouts/teacher.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% set active_course_id = course.id %}
+{% block title %}{{ course.code }} {{ course.title }}{% endblock %}
+{% block crumbs %}<a href="{{ url_for('teacher.dashboard') }}">Overview</a><span class="sep">/</span><span class="here">{{ course.code }}</span>{% endblock %}
+{% block content %}
+<div class="page-h">
+  <div>
+    <p class="eyebrow">{{ course.code }}{% if course.semester %} · {{ course.semester }}{% endif %}</p>
+    <h1>{{ course.title }}</h1>
+    {% if course.description %}<p class="meta">{{ course.description }}</p>{% endif %}
+  </div>
+  <div class="row">
+    <div class="joinbox">
+      <div><div class="k">Join code</div><div class="joincode">{{ course.join_code }}</div></div>
+      <form method="post" action="{{ url_for('teacher.regenerate_join_code', course_id=course.id, tab=tab) }}" class="inline">
+        {{ ui.csrf() }}<button class="btn secondary sm" type="submit" title="Old code stops working">Regenerate</button>
+      </form>
+    </div>
+    <a class="btn secondary" href="{{ url_for('teacher.gradebook', course_id=course.id) }}">{{ ui.icon('download') }}Gradebook CSV</a>
+    <a class="btn secondary" href="{{ url_for('teacher.analytics', course=course.id) }}">Analytics</a>
+  </div>
+</div>
+
+<nav class="tabs">
+  <a href="{{ url_for('teacher.course', course_id=course.id, tab='assignments') }}" class="{{ 'active' if tab == 'assignments' }}">Assignments<span class="count">{{ course.assignments|length }}</span></a>
+  <a href="{{ url_for('teacher.course', course_id=course.id, tab='materials') }}" class="{{ 'active' if tab == 'materials' }}">Materials<span class="count">{{ course.materials|length }}</span></a>
+  <a href="{{ url_for('teacher.course', course_id=course.id, tab='students') }}" class="{{ 'active' if tab == 'students' }}">Students<span class="count">{{ enrolled }}</span></a>
+</nav>
+
+{% if tab == 'assignments' %}
+<div class="split">
+  <section class="panel">
+    <div class="panel-h"><h2>Assignments</h2></div>
+    {% if rows %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Title</th><th>Due</th><th>Submitted</th><th class="num">Graded</th><th class="num">Late</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td><a class="cell-title" href="{{ url_for('teacher.assignment', assignment_id=r.a.id) }}">{{ r.a.title }}</a>
+              <span class="cell-sub">{{ r.a.max_marks }} marks</span></td>
+          <td class="nowrap">{{ r.a.due_at|localdt('%d %b, %I:%M %p') }}
+              <span class="cell-sub">{% if r.a.is_open %}{{ r.a.due_at|due_in }}{% else %}closed{% endif %}</span></td>
+          <td><div class="progress">{{ ui.bar(pct(r.submitted, enrolled)) }}<span class="n">{{ r.submitted }}/{{ enrolled }}</span></div></td>
+          <td class="num">{{ r.graded }}/{{ r.submitted }}</td>
+          <td class="num">{{ r.late }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="panel-b"><div class="empty">No assignments yet. Publish the first one using the form.</div></div>{% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-h"><h2>Publish an assignment</h2></div>
+    <div class="panel-b">
+      <form method="post" action="{{ url_for('teacher.assignment_create', course_id=course.id) }}" enctype="multipart/form-data">
+        {{ ui.csrf() }}
+        <label>Title<input name="title" maxlength="200" required placeholder="A3: Auto scaling experiment report"></label>
+        <label>Instructions<textarea name="description" placeholder="Deliverables, format, evaluation rubric…"></textarea></label>
+        <div class="form-row">
+          <label>Due ({{ config.APP_TIMEZONE }})<input type="datetime-local" name="due_at" required></label>
+          <label>Max marks<input type="number" name="max_marks" value="20" min="1" max="1000" required></label>
+        </div>
+        <label>Brief / template (optional)<input type="file" name="attachment"></label>
+        <button class="btn block" type="submit">Publish to {{ enrolled }} student{{ 's' if enrolled != 1 }}</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+{% elif tab == 'materials' %}
+<div class="split">
+  <section class="panel">
+    <div class="panel-h"><h2>Course materials</h2></div>
+    {% if course.materials %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Title</th><th>File</th><th class="num">Size</th><th>Uploaded</th><th></th></tr></thead>
+      <tbody>
+      {% for m in course.materials %}
+        <tr>
+          <td><a class="cell-title" href="{{ url_for('files.material', material_id=m.id) }}">{{ m.title }}</a></td>
+          <td class="mono small">{{ m.filename }}</td>
+          <td class="num">{{ m.size_bytes|filesize }}</td>
+          <td class="nowrap">{{ m.uploaded_at|localdt('%d %b %Y') }}</td>
+          <td class="num">
+            <form method="post" action="{{ url_for('teacher.material_delete', material_id=m.id) }}" class="inline">
+              {{ ui.csrf() }}<button class="linkbtn danger" type="submit">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<div class="panel-b"><div class="empty">No materials shared yet.</div></div>{% endif %}
+  </section>
+  <section class="panel">
+    <div class="panel-h"><h2>Share a file</h2></div>
+    <div class="panel-b">
+      <form method="post" action="{{ url_for('teacher.material_upload', course_id=course.id) }}" enctype="multipart/form-data">
+        {{ ui.csrf() }}
+        <label>Title<input name="title" maxlength="200" placeholder="Lecture 03 - Load balancing"></label>
+        <label>File<input type="file" name="file" required><span class="hint">Up to 10 MB. Stored privately in S3.</span></label>
+        <button class="btn block" type="submit">Upload</button>
+      </form>
+    </div>
+  </section>
+</div>
+
+{% else %}
+<section class="panel">
+  <div class="panel-h"><h2>Enrolled students</h2><span class="muted small">{{ enrolled }} enrolled · {{ course.assignments|length }} assignments</span></div>
+  {% if roster %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Roll no.</th><th>Name</th><th>Email</th><th>Joined</th><th class="num">Submitted</th><th class="num">Average</th><th></th></tr></thead>
+    <tbody>
+    {% for r in roster %}
+      <tr>
+        <td class="mono">{{ r.student.roll_number }}</td>
+        <td>{{ r.student.name }}</td>
+        <td class="muted">{{ r.student.email }}</td>
+        <td class="nowrap">{{ r.enrollment.joined_at|localdt('%d %b %Y') }}</td>
+        <td class="num">{{ r.submitted }}/{{ course.assignments|length }}</td>
+        <td class="num">{% if r.avg is not none %}{{ r.avg }}%{% else %}—{% endif %}</td>
+        <td class="num">
+          <form method="post" action="{{ url_for('teacher.remove_student', course_id=course.id, student_id=r.student.id) }}" class="inline">
+            {{ ui.csrf() }}<button class="linkbtn danger" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="panel-b"><div class="empty">No students yet. Share join code <span class="joincode">{{ course.join_code }}</span> with your class.</div></div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

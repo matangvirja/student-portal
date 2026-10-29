@@ -1,0 +1,62 @@
+/* Public pages: landing, sign in, sign up. */
+body.public {
+  --font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bg: #ffffff; --surface: #fff; --text: #101828; --muted: #5d6679;
+  --border: #e6e8ee; --border-strong: #d0d5dd; --accent: #1f3fd1; --accent-hover: #1832a8;
+  --accent-ring: #c7d2fe; --track: #e6e8ee; --danger: #b42318; --radius: 14px; --radius-sm: 9px;
+}
+
+/* landing */
+.l-nav { max-width: 1120px; margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; gap: 16px; }
+.l-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; }
+.l-brand .mark { width: 30px; height: 30px; border-radius: 8px; background: #101828; color: #fff; display: grid; place-items: center; font-size: .8rem; font-weight: 700; }
+.l-hero { max-width: 1120px; margin: 0 auto; padding: 56px 24px 40px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: center; }
+.l-hero h1 { font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.02em; margin-bottom: 16px; }
+.l-hero .lede { font-size: 1.1rem; color: var(--muted); max-width: 520px; }
+.role-cards { display: grid; gap: 14px; }
+.role-card { display: block; border: 1px solid var(--border); border-radius: 16px; padding: 22px; text-decoration: none; color: var(--text); transition: border-color .15s, transform .15s; }
+.role-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.role-card .tag { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.role-card h3 { font-size: 1.2rem; margin: 6px 0 6px; }
+.role-card p { color: var(--muted); margin: 0; font-size: .93rem; }
+.role-card.student .tag { color: #7c3aed; }
+.role-card.teacher .tag { color: #0f766e; }
+.l-stack { background: #0b1220; color: #cbd5e1; }
+.l-stack-in { max-width: 1120px; margin: 0 auto; padding: 40px 24px; }
+.l-stack h2 { color: #fff; font-size: 1.15rem; }
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 18px; }
+.pipeline div { border: 1px solid #1f2a44; border-radius: 10px; padding: 12px 14px; font-size: .86rem; }
+.pipeline strong { display: block; color: #fff; font-size: .92rem; }
+.l-foot { text-align: center; color: var(--muted); font-size: .8rem; padding: 22px; }
+
+/* auth split screen */
+.auth { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.05fr); min-height: 100vh; }
+.auth-art { background: #0b1220; color: #cbd5e1; padding: 40px 48px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px; }
+.auth-art .l-brand { color: #fff; }
+.auth-art .l-brand .mark { background: #fff; color: #0b1220; }
+.auth-art blockquote { margin: 0; font-size: 1.35rem; line-height: 1.4; color: #fff; max-width: 420px; font-weight: 500; }
+.auth-art ul { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 8px; font-size: .92rem; }
+.auth-art li::before { content: "—"; color: #64748b; margin-right: 8px; }
+.auth-form { display: grid; place-items: center; padding: 40px 24px; }
+.auth-card { width: 100%; max-width: 420px; }
+.auth-card h1 { font-size: 1.7rem; letter-spacing: -.01em; }
+.auth-card .sub { color: var(--muted); margin-bottom: 22px; }
+
+.role-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #f2f4f7; border-radius: 11px; padding: 4px; margin-bottom: 20px; }
+.role-switch label { margin: 0; text-align: center; padding: 9px; border-radius: 8px; cursor: pointer; font-weight: 600; color: var(--muted); position: relative; }
+.role-switch input { position: absolute; opacity: 0; pointer-events: none; }
+.role-switch label:has(input:checked) { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+.role-switch label:has(input:focus-visible) { outline: 3px solid var(--accent-ring); }
+/* Show only the fields for the selected role (server validates regardless). */
+.auth-card:has(#role-teacher:checked) .only-student,
+.auth-card:has(#role-student:checked) .only-teacher { display: none; }
+
+.err-wrap { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.err-card { max-width: 440px; text-align: center; }
+.err-card .code { font-size: 4rem; font-weight: 700; letter-spacing: -.04em; color: var(--accent); line-height: 1; }
+
+@media (max-width: 860px) {
+  .l-hero, .auth { grid-template-columns: 1fr; }
+  .auth-art { padding: 28px 24px; }
+  .auth-art blockquote, .auth-art ul { display: none; }
+}

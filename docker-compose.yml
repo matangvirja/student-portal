@@ -1,0 +1,36 @@
+# Local development: the app + PostgreSQL, no AWS needed.
+#   docker compose up --build                       ->  http://localhost:5000
+#   docker compose exec web flask seed-demo         ->  demo faculty, students and grades
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: portal
+      POSTGRES_PASSWORD: portal
+      POSTGRES_DB: portal
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portal"]
+      interval: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: runtime
+    ports:
+      - "5000:5000"
+    environment:
+      DB_HOST: db
+      DB_USER: portal
+      DB_PASSWORD: portal
+      DB_NAME: portal
+      DB_SSLMODE: disable
+      SECRET_KEY: local-dev-only
+      TEACHER_INVITE_CODE: FACULTY-DEV
+      ENABLE_LOAD_ENDPOINT: "true"
+      UPLOAD_DIR: /app/instance/uploads
+    depends_on:
+      db:
+        condition: service_healthy

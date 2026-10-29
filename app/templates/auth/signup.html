@@ -1,0 +1,34 @@
+{% extends "layouts/public.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}Create account · Student Portal{% endblock %}
+{% block body %}
+<div class="auth">
+  {% include "auth/_art.html" %}
+  <main class="auth-form">
+    <div class="auth-card">
+      <h1>Create your account</h1>
+      <p class="sub">Choose your role. Faculty accounts need the department's access code.</p>
+      {{ ui.flashes() }}
+      <form method="post">
+        {{ ui.csrf() }}
+        <div class="role-switch" role="radiogroup" aria-label="Account type">
+          <label><input type="radio" id="role-student" name="role" value="student" {{ 'checked' if form.role != 'teacher' }}>Student</label>
+          <label><input type="radio" id="role-teacher" name="role" value="teacher" {{ 'checked' if form.role == 'teacher' }}>Faculty</label>
+        </div>
+        <label>Full name<input name="name" value="{{ form.name or '' }}" maxlength="120" autocomplete="name" required></label>
+        <label>Institute email<input type="email" name="email" value="{{ form.email or '' }}" maxlength="255" autocomplete="email" required></label>
+        <div class="form-row">
+          <label class="only-student">Roll / enrolment no.<input name="roll_number" value="{{ form.roll_number or '' }}" maxlength="32" placeholder="24MCS017"></label>
+          <label>Department<input name="department" value="{{ form.department or '' }}" maxlength="120" placeholder="{{ 'M.Tech CSE' if form.role != 'teacher' else 'Computer Engineering' }}"></label>
+        </div>
+        <label class="only-teacher">Faculty access code<input name="faculty_code" autocomplete="off" placeholder="Provided by your department">
+          <span class="hint">Stops students from creating faculty accounts.</span></label>
+        <label>Password<input type="password" name="password" minlength="8" autocomplete="new-password" required>
+          <span class="hint">At least 8 characters, with letters and numbers.</span></label>
+        <button class="btn block" type="submit">Create account</button>
+      </form>
+      <p class="small muted mt">Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
+    </div>
+  </main>
+</div>
+{% endblock %}

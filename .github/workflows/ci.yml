@@ -1,0 +1,16 @@
+# Optional: run the tests on every pull request in GitHub, before code reaches main.
+# Deployment itself is done by AWS CodePipeline when main changes.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests in the Docker test stage
+        run: docker build --target test -t portal-test .

@@ -1,0 +1,12 @@
+{% extends "layouts/public.html" %}
+{% block title %}{{ title }} · Student Portal{% endblock %}
+{% block body %}
+<div class="err-wrap">
+  <div class="err-card">
+    <div class="code">{{ code }}</div>
+    <h1>{{ title }}</h1>
+    <p class="muted">{{ message }}</p>
+    <a class="btn" href="{{ url_for('auth.landing') }}">Go to my workspace</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "layouts/student.html" %}
+{% import "partials/ui.html" as ui with context %}
+{% block title %}{{ course.code }}{% endblock %}
+{% block content %}
+<a class="back" href="{{ url_for('student.dashboard') }}">← Home</a>
+<section class="banner c{{ color }}">
+  <div class="code">{{ course.code }}{% if course.semester %} · {{ course.semester }}{% endif %}</div>
+  <h1>{{ course.title }}</h1>
+  <p>{{ course.teacher.name }}{% if course.teacher.department %}, {{ course.teacher.department }}{% endif %}</p>
+</section>
+
+<div class="s-grid">
+  <section class="card">
+    <div class="card-h"><h2>Assignments</h2><span class="muted small">{{ items|length }} total</span></div>
+    {% for i in items %}
+      <a class="task" href="{{ url_for('student.assignment', assignment_id=i.a.id) }}">
+        <div class="datebox"><div class="d">{{ i.a.due_at|localdt('%d') }}</div><div class="m">{{ i.a.due_at|localdt('%b') }}</div></div>
+        <div class="body">
+          <div class="t">{{ i.a.title }}</div>
+          <div class="when">{{ i.a.max_marks }} marks · {% if i.a.is_open %}due {{ i.a.due_at|due_in }}{% else %}closed{% endif %}</div>
+        </div>
+        {% if i.sub and i.sub.is_graded %}<span class="score">{{ i.sub.marks|marks }}<span class="muted small">/{{ i.a.max_marks }}</span></span>
+        {% else %}{{ ui.chip(i.status) }}{% endif %}
+      </a>
+    {% else %}
+      <p class="muted">No assignments published yet.</p>
+    {% endfor %}
+  </section>
+
+  <aside>
+    <section class="card">
+      <div class="card-h"><h2>Materials</h2></div>
+      {% for m in course.materials %}
+        <a class="filelink" href="{{ url_for('files.material', material_id=m.id) }}">
+          <span class="ico">{{ ui.ext(m.filename) }}</span>
+          <span><span class="name">{{ m.title }}</span><span class="small muted">{{ m.size_bytes|filesize }} · {{ m.uploaded_at|localdt('%d %b') }}</span></span>
+        </a>
+      {% else %}
+        <p class="muted small">Your instructor hasn't shared any files yet.</p>
+      {% endfor %}
+    </section>
+    {% if course.description %}
+    <section class="card mt"><div class="card-h"><h2>About this course</h2></div><p class="prose">{{ course.description }}</p></section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
