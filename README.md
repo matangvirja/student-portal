@@ -393,3 +393,5 @@ No NAT Gateway is used (that alone would add ~$1+/day): tasks sit in public subn
 - **Blue/green deployments** with CodeDeploy instead of rolling updates.
 - **Alembic** (Flask-Migrate) migrations run as a one-off ECS task before the deploy stage.
 - **Plagiarism check** as an asynchronous job (S3 event → SQS → worker service) to show event-driven scaling.
+
+sfs
